@@ -2,6 +2,7 @@ import torch
 import librosa
 import pandas as pd
 import numpy as np
+import pickle as pkl
 import os
 from keras.utils import to_categorical
 import string
@@ -10,49 +11,70 @@ from keras.preprocessing.sequence import pad_sequences
 
 
 class audioContainer():
-    def __init__(self, path_songs, sr, song_duration=15, offset=60):
-        all_data = os.listdir(path_songs)
-        self.paths = [song for song in all_data if "mp3" in song]
+    def __init__(self, path_songs, sr, song_duration=15, offset=60, limit=None):
+        assert type(path_songs) == list
+        self.audio_with_text = []
+        self.paths = []
+        for path_song in path_songs:
+            all_data = os.listdir(path_song)
+            print(f"Number of files in folder: {len(all_data)}")
+            list_audio_only = [audio for audio in all_data if "txt" not in audio]
+            list_audio_only_no_space = [audio.replace(" ", "") for audio in list_audio_only]
+            text_no_space = [text.replace(" ", "") for text in all_data if "txt" in text]
+            temp = [list_audio_only[i] for i, audio in enumerate(list_audio_only_no_space) for text in text_no_space if audio.split("-")[1] in text]
+            self.audio_with_text.extend(temp)
+            print(f"Number of audio tracks with lyrics: {len(temp)}")
+            tmp = [os.path.join(path_song, audio) for audio in temp]
+            self.paths.extend(tmp)
+        if limit is not None:
+            idx = np.random.choice(np.arange(0, len(self.paths)), size=limit, replace=False )
+            self.paths = list(np.asarray(self.paths)[idx])
+            self.audio_with_text = list(np.asarray(self.audio_with_text)[idx])
         self.sr = sr
         self.duration = song_duration
         self.offset = offset
+
     def load_songs(self):
         audiowaves = []
         for song in self.paths:
-            audiowave, = librosa.load(song, sr=self.sr, duration=self.duration,
+            audiowave, _ = librosa.load(song, sr=self.sr, duration=self.duration,
                          offset=self.offset, mono=True)
             audiowaves.append(audiowave)
 
-        self.audiowaves = np.asarray(audiowaves)
+        self.audiowaves = np.asarray(audiowaves)[:, None, :] # expand to 3d for convnet
+
+    def save(self, path="./audiocontainer.pkl"):
+        with open(path, "w") as f:
+            pkl.dump(self, path)
 
 # Adapted from https://data-flair.training/blogs/python-based-project-image-caption-generator-cnn/
 class textContainer():
-    def __init__(self, path_texts, audio_data_paths, audiowaves):
-        all_data = os.listdir(path_texts)
-        self.path = [text for text in all_data if "txt" in text]
-        self.audio_data_paths = audio_data_paths
+    def __init__(self, path_texts, audio_with_text, audiowaves):
+        assert type(path_texts) == list
+        self.song_lyrics_path = []
+        self.path_texts = []
+        for path_text in path_texts:
+            all_data = os.listdir(path_text)
+            self.song_lyrics_path.extend([path_text+"/---"+text for text in all_data if "txt" in text])
+        self.audio_with_text = audio_with_text
         self.audiowaves = audiowaves
 
-    def _load_doc(self):
+    def _load_doc(self, file):
         # Opening the file as read only
-        file = open(self.paths, 'r')
+        file = open(file, 'r')
         text = file.read()
         file.close()
         return text
 
     def _all_lyrics_for_audio(self):
         lyrics_for_audio = {}
-        audio_data_paths = self.audio_data_paths
-        list_of_file = os.listdir(audio_data_paths)
-        list_audio_only = [audio for audio in list_of_file if "txt" not in audio]
-        list_audio_only_no_space = [audio.replace("") for audio in list_audio_only]
-        text_no_space = [text.replace("") for text in self.paths]
+        audio_with_text = self.audio_with_text
 
-        audio_with_text = [audio for audio in list_audio_only_no_space for text in text_no_space if audio in text]
-        idx_audio_text = [i for i,audio in enumerate(list_audio_only) if audio in audio_with_text]
-
-        audio_data_paths = list(np.asarray(audio_with_text)[idx_audio_text])
-        for filename, audio_data_path in zip(self.paths, audio_data_paths):
+        text_no_space = [text.replace(" ","") for text in self.song_lyrics_path]
+        list_audio_only_no_space = [audio.replace(" ", "") for audio in audio_with_text]
+        text_to_use = [text for i, text in enumerate(self.song_lyrics_path) for audio_nospace in list_audio_only_no_space if text_no_space[i].split("---")[1].split(".tx")[0] in audio_nospace]
+        text_to_use = [text.replace("---", "") for text in text_to_use]
+        for filename, audio_data_path in zip(text_to_use, self.audio_with_text):
             file = self._load_doc(filename)
             lyrics = file.split('\n')[1:]
             for sentence in lyrics:
