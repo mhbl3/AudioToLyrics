@@ -108,7 +108,7 @@ class textContainer():
         for key, sentences in clean_lyrics.items():
             temp = []
             for sentence in sentences:
-                temp_sentence = '<start> ' + sentence + ' <end>'
+                temp_sentence = sentence # '<start> ' + sentence + ' <end>'
                 temp.append(temp_sentence)
             clean_lyrics[key] = temp
         return clean_lyrics
