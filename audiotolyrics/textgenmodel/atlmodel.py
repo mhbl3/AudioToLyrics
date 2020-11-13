@@ -129,7 +129,7 @@ class audioFeatureExtractor(torch.nn.Module):
 
     def traintextgen(self, input_audio, input_text, output_text,
               epochs=300, learning_rate=0.001, l2=0, opt="adam",
-              bsize=32, momentum=0.999, shuffle=False,cuda=True):
+              bsize=32, momentum=0.999, shuffle=False, cuda=True):
         chosen_epoch = 100
         self.epochs = epochs
         self.learning_rate = learning_rate
@@ -144,6 +144,7 @@ class audioFeatureExtractor(torch.nn.Module):
 
         if cuda:
             self.cuda()
+        print(f"Starting model training for {epochs} epochs")
         for epoch in range(epochs):
             if epoch == 0:
                 if opt == "adam":
@@ -174,13 +175,14 @@ class audioFeatureExtractor(torch.nn.Module):
                 hist_batch.append(self.hist[epoch])
                 loss.backward()
                 optimizer.step()
-            print(f"Epoch #{epoch + 1}, loss={np.mean(hist_batch)}")
+            if epoch % 10 == 0:
+                print(f"Epoch #{epoch + 1}, loss={np.mean(hist_batch)}")
 
     def spitbars(self, token, input_audio, in_text="start", stop=None):
 
-        for i in range(self.max_length):
+        for i in range(self.max_len):
             sequence = token.texts_to_sequences([in_text])[0]
-            sequence = pad_sequences([sequence], maxlen=self.max_length)
+            sequence = pad_sequences([sequence], maxlen=self.max_len)
             pred = self.forward(sequence, input_audio.reshape(1, 1, -1), cuda=True)
             pred = np.argmax(pred.cpu().detach().numpy())
             word = self.word_for_id(pred, token)
@@ -201,3 +203,6 @@ class audioFeatureExtractor(torch.nn.Module):
                 return word
         return None
 
+    def savemodel(self, path="./audiotolyrics_model.pt"):
+        with open(path, "w") as f:
+            torch.save(self, f)

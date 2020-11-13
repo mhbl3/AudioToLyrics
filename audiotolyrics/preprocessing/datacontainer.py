@@ -173,11 +173,15 @@ class textContainer():
         list_input_audio = []
         list_input_text = []
         list_output_text = []
+        self.end_index_songs = []
+        tmp = 0
         for key, _ in audio.items():
             input_audio, input_text, output_text = self._create_sequences(lyrics[key], audio[key])
             list_input_audio.append(input_audio)
             list_input_text.append(input_text)
             list_output_text.append(output_text)
+            tmp += len(input_text)
+            self.end_index_songs.append(tmp)
         self.input_audio = np.concatenate(list_input_audio)
         self.input_text = np.concatenate(list_input_text)
         self.output_text = np.concatenate(list_output_text)
