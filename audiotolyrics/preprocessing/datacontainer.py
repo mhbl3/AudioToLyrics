@@ -11,7 +11,8 @@ from keras.preprocessing.sequence import pad_sequences
 
 class audioContainer():
     def __init__(self, path_songs, sr, song_duration=15, offset=60):
-        self.paths = path_songs
+        all_data = os.listdir(path_songs)
+        self.paths = [song for song in all_data if "mp3" in song]
         self.sr = sr
         self.duration = song_duration
         self.offset = offset
