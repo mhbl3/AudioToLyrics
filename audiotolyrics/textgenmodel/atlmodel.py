@@ -2,12 +2,13 @@ import torch
 from ..preprocessing.datacontainer import myDataset
 import numpy as np
 from keras.preprocessing.sequence import pad_sequences
-
-
+from torch.nn import TransformerDecoderLayer
+from torch.nn import LayerNorm
+from torch.nn import TransformerDecoder
 
 class audioFeatureExtractor(torch.nn.Module):
     def __init__(self, vocab_size, filter_list, ks_list, stride_list, seq_len, max_len,
-                 padding=1,
+                 nhead=8,
                  embedding_size=8, input_size=1,
                  latent_dim=256, n_operations=3):
         torch.nn.Module.__init__(self)
@@ -22,6 +23,7 @@ class audioFeatureExtractor(torch.nn.Module):
         self.sequence_length = seq_len
         self.n_operations = n_operations
         self.compute_window_size(seq_len)
+        self.nhead = nhead
         self.lstm_dim = 50
 
         # Handling Audio
@@ -71,7 +73,10 @@ class audioFeatureExtractor(torch.nn.Module):
         self.lstm2 = torch.nn.LSTM(input_size=self.lstm_dim,
                                    hidden_size=self.latent_dim,
                                    batch_first=True)
-
+        # Transformer decoder
+        self.transformer_decoder_layer = TransformerDecoderLayer(self.latent_dim, nhead=self.nhead)
+        decoder_norm = LayerNorm(self.latent_dim)
+        self.transformer_decoder = TransformerDecoder(self.transformer_decoder_layer, num_layers=6, norm=decoder_norm)
         # Common
         self.common_dense = torch.nn.Linear(in_features=latent_dim,
                                             out_features=1028)
@@ -93,6 +98,7 @@ class audioFeatureExtractor(torch.nn.Module):
         pos = torch.arange(text.shape[-1])
         if cuda:
             pos = pos.cuda()
+
         pos_out = self.pos_embedding(pos)
         text_out2 = pos_out + text_out1
         h_0 = torch.zeros(1, audio.size(0), self.lstm_dim)
@@ -144,6 +150,8 @@ class audioFeatureExtractor(torch.nn.Module):
 
         if cuda:
             self.cuda()
+        else:
+            self.cpu()
         print(f"Starting model training for {epochs} epochs")
         for epoch in range(epochs):
             if epoch == 0:
@@ -178,12 +186,12 @@ class audioFeatureExtractor(torch.nn.Module):
             if epoch % 10 == 0:
                 print(f"Epoch #{epoch + 1}, loss={np.mean(hist_batch)}")
 
-    def spitbars(self, token, input_audio, in_text="start", stop=None):
+    def spitbars(self, token, input_audio, in_text="start", stop=None, cuda=True):
 
         for i in range(self.max_len):
             sequence = token.texts_to_sequences([in_text])[0]
             sequence = pad_sequences([sequence], maxlen=self.max_len)
-            pred = self.forward(sequence, input_audio.reshape(1, 1, -1), cuda=True)
+            pred = self.forward(sequence, input_audio.reshape(1, 1, -1), cuda=cuda)
             pred = np.argmax(pred.cpu().detach().numpy())
             word = self.word_for_id(pred, token)
             if word is None:

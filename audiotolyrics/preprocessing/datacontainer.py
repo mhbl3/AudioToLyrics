@@ -15,21 +15,45 @@ class audioContainer():
         assert type(path_songs) == list
         self.audio_with_text = []
         self.paths = []
+        flag = True
         for path_song in path_songs:
             all_data = os.listdir(path_song)
-            print(f"Number of files in folder: {len(all_data)}")
+            print(f"Number of files in folder (lyrics+ tracks): {len(all_data)}")
             list_audio_only = [audio for audio in all_data if "txt" not in audio]
             list_audio_only_no_space = [audio.replace(" ", "") for audio in list_audio_only]
             text_no_space = [text.replace(" ", "") for text in all_data if "txt" in text]
-            temp = [list_audio_only[i] for i, audio in enumerate(list_audio_only_no_space) for text in text_no_space if audio.split("-")[1] in text]
+            # temp_audio = [audio.replace("–", "-") for audio in list_audio_only_no_space]
+            temp = []
+            for lyrics in text_no_space:
+                for idx, audio in enumerate(list_audio_only_no_space):
+                    if lyrics.split(".txt")[0] in audio:
+                        temp.append(list_audio_only[idx])
+                        break
+            # temp = [list_audio_only[i] for i, audio in enumerate(temp_audio) for text in text_no_space if text in audio.split("-")[1]]
             self.audio_with_text.extend(temp)
             print(f"Number of audio tracks with lyrics: {len(temp)}")
             tmp = [os.path.join(path_song, audio) for audio in temp]
             self.paths.extend(tmp)
+            if flag:
+                idx_last_first_genre = len(self.paths) -1
+                flag = False
         if limit is not None:
-            idx = np.random.choice(np.arange(0, len(self.paths)), size=limit, replace=False )
-            self.paths = list(np.asarray(self.paths)[idx])
-            self.audio_with_text = list(np.asarray(self.audio_with_text)[idx])
+            my_reduced_path = []
+            my_reduced_audio_text = []
+            idx = np.random.choice(np.arange(0, len(self.paths[:idx_last_first_genre+1])), size=limit//2, replace=False )
+            my_reduced_path.extend(list(np.asarray(self.paths)[idx]))
+            my_reduced_audio_text.extend(list(np.asarray(self.audio_with_text)[idx]))
+            idx = np.random.choice(np.arange(idx_last_first_genre+1, len(self.paths)), size=limit // 2,
+                                   replace=False)
+            my_reduced_path.extend(list(np.asarray(self.paths)[idx]))
+            my_reduced_audio_text.extend(list(np.asarray(self.audio_with_text)[idx]))
+            self.paths = my_reduced_path
+            self.audio_with_text = my_reduced_audio_text
+
+        shuffled_idx = np.arange(len(self.paths))
+        np.random.shuffle(shuffled_idx)
+        self.paths = list(np.asarray(self.paths)[shuffled_idx])
+        self.audio_with_text = list(np.asarray(self.audio_with_text)[shuffled_idx])
         self.sr = sr
         self.duration = song_duration
         self.offset = offset
@@ -45,7 +69,7 @@ class audioContainer():
 
     def save(self, path="./audiocontainer.pkl"):
         with open(path, "w") as f:
-            pkl.dump(self, path)
+            pkl.dump(self, f)
 
 # Adapted from https://data-flair.training/blogs/python-based-project-image-caption-generator-cnn/
 class textContainer():
@@ -108,7 +132,7 @@ class textContainer():
         for key, sentences in clean_lyrics.items():
             temp = []
             for sentence in sentences:
-                temp_sentence = sentence # '<start> ' + sentence + ' <end>'
+                temp_sentence =  '<start> ' + sentence + ' <end>'
                 temp.append(temp_sentence)
             clean_lyrics[key] = temp
         return clean_lyrics
