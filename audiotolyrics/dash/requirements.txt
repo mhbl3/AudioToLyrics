@@ -1,0 +1,9 @@
+dash==1.17.0
+dash-daq
+requests
+pandas
+dash_bootstrap_components
+gunicorn==19.9.0
+librosa==0.8.0
+keras==2.3.1
+tensorflow==2.1.0

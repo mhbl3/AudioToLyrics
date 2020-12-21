@@ -8,7 +8,7 @@ from keras.utils import to_categorical
 import string
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-
+import soundfile
 
 class audioContainer():
     def __init__(self, path_songs, sr, use_log_spectrogram=False, song_duration=15, offset=25, limit=None):
